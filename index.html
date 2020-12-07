@@ -1,0 +1,193 @@
+<!doctype html> 
+<html lang="en"> 
+<head> 
+    <meta charset="UTF-8" />
+    <title>DXBALL</title>
+    <script src="//cdn.jsdelivr.net/npm/phaser@3.11.0/dist/phaser.js"></script>
+    <style type="text/css">
+        body {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+
+<script type="text/javascript">
+  var platforms;
+  var player;
+  var cursors;
+  var score = 0;
+  var scoreText;
+  var mainBar;
+  var ball;
+  var noGravityGroup;
+  var tiles = [];
+  var gameInfoText;
+
+  var config = {
+      type: Phaser.AUTO,
+      width: window.innerWidth,
+      height: window.innerHeight,
+      physics: {
+        default: 'arcade',
+        arcade: {
+            gravity: { y: 200 },
+            debug: false
+        }
+      },
+      scene: {
+          preload: preload,
+          create: create,
+          update: update
+      }
+  };
+
+  var game = new Phaser.Game(config);
+
+  function preload ()
+  {
+    this.load.image('background', './assets/background.jpg');
+    this.load.image('mainBar', './assets/main_bar.svg');
+    this.load.image('ball', './assets/ball.svg');
+    this.load.image('tile', './assets/tile.svg');
+    this.load.image('shoot', './assets/shoot.svg');
+    this.load.image('split', './assets/split.svg');
+    this.load.image('slow', './assets/slow.svg');
+    this.load.image('expandPaddle', './assets/expand_paddle.svg');
+  }
+
+  function create ()
+  {
+    this.physics.world.setBoundsCollision(true, true, true, false);
+    this.physics.pause();
+
+    cursors = this.input.keyboard.createCursorKeys();   
+
+    const bg = this.add.image(0, 0, 'background').setOrigin(0, 0);
+    bg.setDisplaySize(window.innerWidth, window.innerHeight);
+
+    mainBar = this.physics.add.sprite(window.innerWidth / 2, window.innerHeight - 75, 'mainBar');
+    noGravityGroup = this.physics.add.group({
+        immovable: true,
+        allowGravity: false,
+        setCollideWorldBounds: true
+    });
+    noGravityGroup.add(mainBar, true) 
+    mainBar.setCollideWorldBounds(true);
+    
+    ball = this.physics.add.image(window.innerWidth / 2, window.innerHeight - 95, 'ball').setCollideWorldBounds(true).setBounce(1);
+    ball.setData('onPaddle', true);
+    ball.setVelocity(0);
+    var totalItemsInWidth = parseInt(window.innerWidth / 150);
+    tiles = this.physics.add.group({
+      key: 'tile',
+      allowGravity: false,
+      immovable: true,
+      frameQuantity: totalItemsInWidth * 4
+    });
+
+    Phaser.Actions.GridAlign(tiles.getChildren(), {
+        width: parseInt(window.innerWidth / 150),
+        cellWidth: 150,
+        cellHeight: 22,
+        x: 100,
+        y: 50
+    });
+
+    this.physics.add.collider(tiles, ball, collectTile, null, this);
+    this.physics.add.collider(ball, mainBar, hitPaddle, null, this);
+
+    //  Input events
+    this.input.on('pointermove', function (pointer) {
+
+      //  Keep the paddle within the game
+      mainBar.x = Phaser.Math.Clamp(pointer.x, 60, window.innerWidth - 75);
+
+      if (ball.getData('onPaddle'))
+      {
+        ball.x = mainBar.x;
+      }
+    }, this);
+
+    this.input.on('pointerup', function (pointer) {
+
+      if (ball.getData('onPaddle'))
+      {
+          ball.body.setVelocity(window.innerHeight - 200, window.innerHeight - 200).setBounce(1, 1);
+          ball.setData('onPaddle', false);
+          gameInfoText.visible = false;
+          this.physics.resume();
+      }
+
+    }, this);
+
+
+    gameInfoText = this.add.text(parseInt(window.innerWidth / 2), parseInt(window.innerHeight / 2), 'Click to begin', { fontSize: '32px', fill: '#fff' });
+    gameInfoText.setDepth(1);
+
+
+   this.add.image(0, 0, 'shoot').setOrigin(0, 0);
+   this.add.image(300, 300, 'split').setOrigin(0, 0);
+   this.add.image(300, 500, 'slow').setOrigin(0, 0);
+   this.add.image(300, 800, 'expandPaddle').setOrigin(0, 0);
+  }
+
+
+  function collectTile (ball, tile)
+  {
+    tile.disableBody(true, true);
+  }
+
+  function hitPaddle (ball, paddle)
+  {
+      var diff = 0;
+
+      if (ball.x < paddle.x)
+      {
+          //  Ball is on the left-hand side of the paddle
+          diff = paddle.x - ball.x;
+          ball.setVelocityX(-10 * diff);
+      }
+      else if (ball.x > paddle.x)
+      {
+          //  Ball is on the right-hand side of the paddle
+          diff = ball.x -paddle.x;
+          ball.setVelocityX(10 * diff);
+      }
+      else
+      {
+          //  Ball is perfectly in the middle
+          //  Add a little random X to stop it bouncing straight up!
+          ball.setVelocityX(2 + Math.random() * 8);
+      }
+  }
+
+  
+
+  function update ()
+  {
+    mainBar.setVelocityX(0);
+
+    if (cursors.left.isDown) {
+      mainBar.setVelocityX(-900);  
+    }
+
+    if (cursors.right.isDown) {
+      mainBar.setVelocityX(900);  
+    }
+
+    this.physics.world.collide(ball, [ mainBar ]);
+    this.physics.add.collider(ball, mainBar);
+    if(ball.y >= window.innerHeight - 75) {
+      // ball fell down
+      this.physics.pause();
+      gameInfoText = this.add.text(parseInt(window.innerWidth / 2), parseInt(window.innerHeight / 2), 'GAME OVER', { fontSize: '32px', fill: '#fff' });
+      gameInfoText.setDepth(1);
+      gameInfoText.visible = true;
+    }
+  }
+
+</script>
+
+</body>
+</html>
