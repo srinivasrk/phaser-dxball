@@ -18,16 +18,19 @@
   var cursors;
   var score = 0;
   var scoreText;
+  var powerUp;
   var mainBar;
   var ball;
   var noGravityGroup;
   var tiles = [];
   var gameInfoText;
-
+  var tileCount;
+  var numOfBalls = 1; // initally there will be only 1 ball -> more added by power ups
   var config = {
       type: Phaser.AUTO,
       width: window.innerWidth,
       height: window.innerHeight,
+      backgroundColor: '#000000',
       physics: {
         default: 'arcade',
         arcade: {
@@ -46,7 +49,7 @@
 
   function preload ()
   {
-    this.load.image('background', './assets/background.jpg');
+    
     this.load.image('mainBar', './assets/main_bar.svg');
     this.load.image('ball', './assets/ball.svg');
     this.load.image('tile', './assets/tile.svg');
@@ -63,8 +66,8 @@
 
     cursors = this.input.keyboard.createCursorKeys();   
 
-    const bg = this.add.image(0, 0, 'background').setOrigin(0, 0);
-    bg.setDisplaySize(window.innerWidth, window.innerHeight);
+    // const bg = this.add.image(0, 0, 'background').setOrigin(0, 0);
+    // bg.setDisplaySize(window.innerWidth, window.innerHeight);
 
     mainBar = this.physics.add.sprite(window.innerWidth / 2, window.innerHeight - 75, 'mainBar');
     noGravityGroup = this.physics.add.group({
@@ -85,7 +88,7 @@
       immovable: true,
       frameQuantity: totalItemsInWidth * 4
     });
-
+    tileCount = tiles.children.size;
     Phaser.Actions.GridAlign(tiles.getChildren(), {
         width: parseInt(window.innerWidth / 150),
         cellWidth: 150,
@@ -122,20 +125,43 @@
     }, this);
 
 
-    gameInfoText = this.add.text(parseInt(window.innerWidth / 2), parseInt(window.innerHeight / 2), 'Click to begin', { fontSize: '32px', fill: '#fff' });
+    gameInfoText = this.add.text(parseInt(window.innerWidth / 2) - 100, parseInt(window.innerHeight / 2), 'Click to begin', { fontSize: '32px', fill: '#fff', boundsAlignH: "center", boundsAlignV: "middle" });
     gameInfoText.setDepth(1);
 
 
-   this.add.image(0, 0, 'shoot').setOrigin(0, 0);
-   this.add.image(300, 300, 'split').setOrigin(0, 0);
-   this.add.image(300, 500, 'slow').setOrigin(0, 0);
-   this.add.image(300, 800, 'expandPaddle').setOrigin(0, 0);
+   //this.add.image(0, 0, 'shoot').setOrigin(0, 0);
+   //this.add.image(300, 300, 'split').setOrigin(0, 0);
+   //this.add.image(300, 500, 'slow').setOrigin(0, 0);
+   //this.add.image(300, 800, 'expandPaddle').setOrigin(0, 0);
   }
 
 
   function collectTile (ball, tile)
   {
     tile.disableBody(true, true);
+    // when the tile is collected on a random event release a power up
+    tileCount--;
+    if (Math.random() >= 0.75) {
+      let powerUpType = Math.random();
+      if ( powerUpType <= 0.25) {
+        powerUp = this.physics.add.image(tile.x, tile.y, 'expandPaddle')
+        powerUp.body.gravity.y = 50;
+      } else if (powerUpType <= 0.5) {
+        powerUp = this.physics.add.image(tile.x, tile.y, 'split')
+        powerUp.body.gravity.y = 50;
+      } else if (powerUpType <= 0.75) {
+        powerUp = this.physics.add.image(tile.x, tile.y, 'slow')
+        powerUp.body.gravity.y = 50;
+      } else {
+        powerUp = this.physics.add.image(tile.x, tile.y, 'shoot')
+        powerUp.body.gravity.y = 50;
+      }
+      this.physics.add.collider(powerUp, mainBar, collectPower, null, this);
+    }
+  }
+
+  function collectPower (powerUp, paddle) {
+    powerUp.disableBody(true, true);
   }
 
   function hitPaddle (ball, paddle)
@@ -158,7 +184,7 @@
       {
           //  Ball is perfectly in the middle
           //  Add a little random X to stop it bouncing straight up!
-          ball.setVelocityX(2 + Math.random() * 8);
+          ball.setVelocityX(5 + Math.random() * 8);
       }
   }
 
@@ -181,7 +207,7 @@
     if(ball.y >= window.innerHeight - 75) {
       // ball fell down
       this.physics.pause();
-      gameInfoText = this.add.text(parseInt(window.innerWidth / 2), parseInt(window.innerHeight / 2), 'GAME OVER', { fontSize: '32px', fill: '#fff' });
+      gameInfoText = this.add.text(parseInt(window.innerWidth / 2) - 100, parseInt(window.innerHeight / 2), 'GAME OVER', { fontSize: '32px', fill: '#fff' });
       gameInfoText.setDepth(1);
       gameInfoText.visible = true;
     }
