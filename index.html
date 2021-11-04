@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <title>DXBALL</title>
     <script src="//cdn.jsdelivr.net/npm/phaser@3.11.0/dist/phaser.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/underscore@1.12.0/underscore-min.js"></script>
     <style type="text/css">
         body {
             margin: 0;
@@ -18,13 +19,14 @@
   var cursors;
   var score = 0;
   var scoreText;
-  var powerUp;
   var mainBar;
   var ball;
+  var gameBalls = [];
   var noGravityGroup;
   var tiles = [];
   var gameInfoText;
   var tileCount;
+  var isSlow = false;
   var numOfBalls = 1; // initally there will be only 1 ball -> more added by power ups
   var config = {
       type: Phaser.AUTO,
@@ -81,6 +83,9 @@
     ball = this.physics.add.image(window.innerWidth / 2, window.innerHeight - 95, 'ball').setCollideWorldBounds(true).setBounce(1);
     ball.setData('onPaddle', true);
     ball.setVelocity(0);
+    ball.body.setAllowGravity(true);
+    ball.body.gravity.y = 2;
+    gameBalls.push(ball);
     var totalItemsInWidth = parseInt(window.innerWidth / 150);
     tiles = this.physics.add.group({
       key: 'tile',
@@ -112,11 +117,21 @@
       }
     }, this);
 
+    this.input.keyboard.on('keydown_ENTER',function () {
+      if (ball.getData('onPaddle'))
+      {
+          ball.body.setVelocity(window.innerHeight, window.innerHeight - 50).setBounce(1, 1);
+          ball.setData('onPaddle', false);
+          gameInfoText.visible = false;
+          this.physics.resume();
+      }
+    }, this);
+
     this.input.on('pointerup', function (pointer) {
 
       if (ball.getData('onPaddle'))
       {
-          ball.body.setVelocity(window.innerHeight - 200, window.innerHeight - 200).setBounce(1, 1);
+          ball.body.setVelocity(window.innerHeight, window.innerHeight - 50).setBounce(1, 1);
           ball.setData('onPaddle', false);
           gameInfoText.visible = false;
           this.physics.resume();
@@ -125,14 +140,8 @@
     }, this);
 
 
-    gameInfoText = this.add.text(parseInt(window.innerWidth / 2) - 100, parseInt(window.innerHeight / 2), 'Click to begin', { fontSize: '32px', fill: '#fff', boundsAlignH: "center", boundsAlignV: "middle" });
+    gameInfoText = this.add.text(parseInt(window.innerWidth / 2) - 300, parseInt(window.innerHeight / 2), 'Click or Press Enter key to begin', { fontSize: '32px', fill: '#fff', boundsAlignH: "center", boundsAlignV: "middle" });
     gameInfoText.setDepth(1);
-
-
-   //this.add.image(0, 0, 'shoot').setOrigin(0, 0);
-   //this.add.image(300, 300, 'split').setOrigin(0, 0);
-   //this.add.image(300, 500, 'slow').setOrigin(0, 0);
-   //this.add.image(300, 800, 'expandPaddle').setOrigin(0, 0);
   }
 
 
@@ -141,27 +150,65 @@
     tile.disableBody(true, true);
     // when the tile is collected on a random event release a power up
     tileCount--;
-    if (Math.random() >= 0.75) {
+    let currentPowerUp;
+    if (Math.random() >= 0.80) {
       let powerUpType = Math.random();
-      if ( powerUpType <= 0.25) {
-        powerUp = this.physics.add.image(tile.x, tile.y, 'expandPaddle')
-        powerUp.body.gravity.y = 50;
-      } else if (powerUpType <= 0.5) {
-        powerUp = this.physics.add.image(tile.x, tile.y, 'split')
-        powerUp.body.gravity.y = 50;
-      } else if (powerUpType <= 0.75) {
-        powerUp = this.physics.add.image(tile.x, tile.y, 'slow')
-        powerUp.body.gravity.y = 50;
-      } else {
-        powerUp = this.physics.add.image(tile.x, tile.y, 'shoot')
-        powerUp.body.gravity.y = 50;
+      if (powerUpType <= 0.5) {
+        currentPowerUp = this.physics.add.image(tile.x, tile.y, 'split')
+        currentPowerUp.body.gravity.y = 50;
+        currentPowerUp.setDataEnabled();
+        currentPowerUp.setData('powerType', 'split');
+      }  else {
+        currentPowerUp = this.physics.add.image(tile.x, tile.y, 'expandPaddle')
+        currentPowerUp.body.gravity.y = 50;
+        currentPowerUp.setDataEnabled();
+        currentPowerUp.setData('powerType', 'expandPaddle');
       }
-      this.physics.add.collider(powerUp, mainBar, collectPower, null, this);
+      this.physics.add.collider(currentPowerUp, mainBar, collectPower, null, this);
+    }
+    if  (tileCount === 0) {
+      // game has ended
+      this.physics.pause();
+      gameInfoText = this.add.text(parseInt(window.innerWidth / 2) - 100, parseInt(window.innerHeight / 2), 'You Win', { fontSize: '32px', fill: '#fff' });
+      gameInfoText.setDepth(1);
+      gameInfoText.visible = true;
     }
   }
 
   function collectPower (powerUp, paddle) {
+    // based on the power up type set a timer which makes the power up up for sometime
+    // create new assets for power up functionalities.
     powerUp.disableBody(true, true);
+    let powerType = powerUp.data.get('powerType');
+    switch (powerType) {
+      case 'expandPaddle': {
+        // scale it up
+        mainBar.setScale(1.5);
+        setTimeout(() => {
+          mainBar.setScale(1);
+        }, 25 * 1000);
+        break;
+      }
+      case 'split': {
+        let i = 0;
+        while (i < 3) {
+          let newBall = this.physics.add.image(gameBalls[0].x + Math.random() * 50, gameBalls[0].y, 'ball').setCollideWorldBounds(true).setBounce(1);
+          this.physics.add.collider(tiles, newBall, collectTile, null, this);
+          this.physics.add.collider(newBall, mainBar, hitPaddle, null, this);
+          newBall.setVelocity(gameBalls[0].body.velocity.x, gameBalls[0].body.velocity.y).setBounce(1, 1);
+          newBall.body.setAllowGravity(true);
+          newBall.body.gravity.y = 2;
+          gameBalls.push(newBall);
+          numOfBalls++;
+          i++;
+        }
+        break;
+        
+      }
+      case 'shoot': {
+        break;
+      }
+    }
   }
 
   function hitPaddle (ball, paddle)
@@ -184,7 +231,7 @@
       {
           //  Ball is perfectly in the middle
           //  Add a little random X to stop it bouncing straight up!
-          ball.setVelocityX(5 + Math.random() * 8);
+          ball.setVelocityX(10 + Math.random() * 10);
       }
   }
 
@@ -204,13 +251,21 @@
 
     this.physics.world.collide(ball, [ mainBar ]);
     this.physics.add.collider(ball, mainBar);
-    if(ball.y >= window.innerHeight - 75) {
-      // ball fell down
-      this.physics.pause();
-      gameInfoText = this.add.text(parseInt(window.innerWidth / 2) - 100, parseInt(window.innerHeight / 2), 'GAME OVER', { fontSize: '32px', fill: '#fff' });
-      gameInfoText.setDepth(1);
-      gameInfoText.visible = true;
-    }
+    gameBalls.forEach(ball => {
+      if(ball.y >= window.innerHeight - 75) {
+        // ball fell down
+        numOfBalls--;
+        if (numOfBalls <= 0) {
+          this.physics.pause();
+          gameInfoText = this.add.text(parseInt(window.innerWidth / 2) - 100, parseInt(window.innerHeight / 2), 'GAME OVER', { fontSize: '32px', fill: '#fff' });
+          gameInfoText.setDepth(1);
+          gameInfoText.visible = true;
+        }
+        ball.disableBody(true, true);
+      }
+    });
+    gameBalls = _.reject(gameBalls, (ball) => ball.body.enable == false)
+    
   }
 
 </script>
